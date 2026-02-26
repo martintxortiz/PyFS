@@ -2,15 +2,18 @@ import logging
 import threading
 
 from fs.services.software_bus import SoftwareBus
+from fs.services.time_services import TimeServices
+
+
 #https://www.perplexity.ai/search/design-a-cfs-style-flight-soft-M.mvoJg1RdO7AEjor6FtUw
 
 class ExecutiveServices:
-    _log = logging.getLogger("fs.es")
+    _log: logging.Logger = logging.getLogger("fs.es")
     _lock: threading.RLock
 
     evs: None
     sb: SoftwareBus
-    ts: None
+    ts: TimeServices
     tbl: None
 
     app_record: None
@@ -18,9 +21,10 @@ class ExecutiveServices:
     reset_type: int
 
     def __init__(self) -> None:
-        self._log.info("es initialized")
+        self.ts = TimeServices()
+        self._log.info("ES initialised")
 
-    def run(self, reset_type: int) -> None:
+    def run(self) -> None:
         """
         if PROCESSOR reset: load_cds() from disk
         init_evs()
