@@ -10,7 +10,7 @@ from test_mission.nodes.gnc_g_node import GNCGNode
 from test_mission.nodes.gnc_n_node import GNCNNode
 from test_mission.nodes.tc_node import TelemetryAndControlNode
 
-def main() -> None:
+def main() -> None: 
     exec_ = FSExecutive()
     
     # Custom mission nodes
