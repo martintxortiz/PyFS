@@ -114,7 +114,7 @@ class LinkWatchdog(App):
                 if age >= self.TIMEOUT_S:
                     with self._lock:
                         self._state.missed_count += 1
-                        self._state.connected     = False
+                        self._state.live     = False
                     self.log.error(
                         f"[WATCHDOG] *** LINK DOWN (LOS) ***  "
                         f"no telemetry for {age:.1f}s  "

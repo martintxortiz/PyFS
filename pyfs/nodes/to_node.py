@@ -1,3 +1,5 @@
+"""Telemetry Output node — serialises telemetry messages and sends them via UDP."""
+
 import json
 import socket
 from dataclasses import asdict
@@ -10,7 +12,9 @@ from pyfs.core.fs_node import FSNode
 
 
 class TelemetryOutputNode(FSNode):
-    name = "to"
+    """Forwards every TLM_MESSAGE_MID message to the ground-station UDP endpoint."""
+
+    name  = "to"
     _sock: socket.socket
 
     def on_init(self) -> None:
@@ -22,7 +26,12 @@ class TelemetryOutputNode(FSNode):
             self._sock.close()
 
     def _handle_telemetry(self, message: FSMessage) -> None:
+        """Serialise *message* to JSON and send it to the configured TLM endpoint."""
         msg_payload: Any = message.payload
-        pkt_payload = asdict(msg_payload)
-        pkt = {"mid": message.mid, "timestamp": message.timestamp, "payload": pkt_payload}
+        pkt_payload      = asdict(msg_payload)
+        pkt = {
+            "mid":       message.mid,
+            "timestamp": message.timestamp,
+            "payload":   pkt_payload,
+        }
         self._sock.sendto(json.dumps(pkt).encode(), (FSCfg.TLM_OUT_HOST, FSCfg.TLM_OUT_PORT))

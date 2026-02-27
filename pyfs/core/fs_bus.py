@@ -50,7 +50,7 @@ class FSBus:
         else:
             full_name = handler.__name__
 
-        self.log.info("[%s] subscribed [%s (%s)]", full_name, mid.name, mid)
+        self.log.info("(%s) subscribed [%s (%s)]", full_name, mid.name, mid)
 
     def pub(self, mid: Mid, message: FSMessage) -> None:
         """Publish *message* to every subscriber of *mid*.

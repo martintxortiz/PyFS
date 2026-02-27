@@ -1,3 +1,5 @@
+"""Scheduler node — fires wakeup messages at fixed rates using a min-heap."""
+
 import threading
 import time
 import heapq
@@ -8,29 +10,38 @@ from pyfs.core.fs_message import FSMessage
 from pyfs.core.fs_node import FSNode
 
 
-# (rate_hz, mid)
+# (rate_hz, mid) — all wakeup ticks published on the bus
 _TASK_TABLE: List[Tuple[int, Mid]] = [
     (1,   Mid.SCH_WAKEUP_1HZ),
     (10,  Mid.SCH_WAKEUP_10HZ),
     (50,  Mid.SCH_WAKEUP_50HZ),
 ]
 
+
 class SchedulerNode(FSNode):
+    """Drives all periodic work in the framework.
+
+    Maintains a min-heap of (next_tick_ns, period_ns, mid).  On each
+    iteration the thread sleeps until the next due tick, publishes the
+    corresponding wakeup MID, and reschedules the entry by adding one period.
+    """
+
     name = "sch"
+
     _stop_event: threading.Event
-    _thread: threading.Thread
-    _heap: List[Tuple[int, int, Mid]]
+    _thread:     threading.Thread
+    _heap:       List[Tuple[int, int, Mid]]
 
     def on_init(self) -> None:
         self._stop_event = threading.Event()
-        self._thread = threading.Thread(target=self._tick, daemon=True)
-        self._heap: List[Tuple[int, int, Mid]] = []  # (next_tick_ns, period_ns, mid)
+        self._thread     = threading.Thread(target=self._tick, daemon=True)
+        self._heap: List[Tuple[int, int, Mid]] = []
 
         now_ns = time.monotonic_ns()
         for rate_hz, mid in _TASK_TABLE:
             period_ns = 1_000_000_000 // rate_hz
             heapq.heappush(self._heap, (now_ns + period_ns, period_ns, mid))
-            self.log.info("registered [%s (%s)] @ %dHz", mid.name, mid, rate_hz)
+            self.log.info("registered [%s (%s)] @ %d Hz", mid.name, mid, rate_hz)
 
     def on_start(self) -> None:
         self._thread.start()
@@ -39,9 +50,10 @@ class SchedulerNode(FSNode):
         self._stop_event.set()
         self._thread.join(timeout=2)
         if self._thread.is_alive():
-            self.log.warning("Bad thread exit")
+            self.log.warning("scheduler thread did not exit cleanly")
 
     def _tick(self) -> None:
+        """Main scheduler loop — sleeps to the next deadline, then publishes."""
         while not self._stop_event.is_set():
             now_ns = time.monotonic_ns()
             next_tick_ns, period_ns, mid = self._heap[0]

@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import logging
-import sys
 import signal
+import sys
 import threading
 
 from pyfs.common.fs_config import FSLogCfg
 from pyfs.core.fs_bus import FSBus
 from pyfs.core.fs_node import FSNode
 
+# Local imports for core nodes
+import pyfs.nodes.sch_node as _sch
+import pyfs.nodes.ci_node as _ci
+import pyfs.nodes.hs_node as _hs
+import pyfs.nodes.to_node as _to
+
 
 class FSExecutive:
     """Top-level controller.
 
-    Instantiate, init, and start every enabled node in registry order.
+    Nodes are registered manually via register_node().
     Block until SIGINT / SIGTERM, then stop all nodes in reverse order.
     """
 
@@ -27,20 +33,24 @@ class FSExecutive:
         self.bus = FSBus()
         self._shutdown_event = threading.Event()
 
-        self.nodes = []
-        for cls in FSNode.get_registry():
-            if not cls.enabled:
-                self.log.warning("[%s] is disabled, skipping", cls.name)
-                continue
-            self.nodes.append(cls())
-
-        self.init()
+        self.nodes: list[FSNode] = []
+        
+        # Auto-register core framework nodes
+        self.register_node(_sch.SchedulerNode())
+        self.register_node(_ci.CommandIngestNode())
+        self.register_node(_hs.HealthAndSafetyNode())
+        self.register_node(_to.TelemetryOutputNode())
+        
         self.log.info("exec initialized")
 
-    def init(self) -> None:
-        """Call init() on every registered node."""
-        for node in self.nodes:
-            node.init()
+    def register_node(self, node: FSNode) -> None:
+        """Register a node with the executive and initialize it."""
+        if not getattr(node.__class__, "enabled", True):
+            self.log.warning("(%s) is disabled, skipping", node.name)
+            return
+        
+        node.init()
+        self.nodes.append(node)
 
     def start(self) -> None:
         """Start all nodes, then block until a shutdown signal is received."""
@@ -48,23 +58,25 @@ class FSExecutive:
             node.start()
         self.log.info("all nodes started")
         self._shutdown_event.wait()
-        self.log.info("shutdown signal received")
+        self.log.warning("shutdown signal received")
         self.shutdown()
 
     def shutdown(self) -> None:
         """Stop all nodes and exit the process."""
         self.stop()
+        self.log.info("shutdown complete, goodbye.")
         sys.exit(0)
 
     def stop(self) -> None:
         """Stop every node in reverse start order."""
-        self.log.info("stopping all nodes")
         for node in reversed(self.nodes):
             try:
                 node.stop()
             except Exception as exc:
                 self.log.error("error stopping node %s: %s", node, exc)
         self.log.info("all nodes stopped")
+
+
 
     def _register_signals(self) -> None:
         # Signal handlers must be registered from the main thread.
@@ -73,7 +85,6 @@ class FSExecutive:
         self.log.info("signal handlers registered")
 
     def _handle_signal(self, signum: int, frame) -> None:
-        self.log.info("%s received — initiating shutdown", signal.Signals(signum).name)
         self._shutdown_event.set()
 
     def _setup_logging(self) -> None:

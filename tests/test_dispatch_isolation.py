@@ -1,9 +1,7 @@
 """Dispatch isolation test.
 
-Proves that a slow handler in NodeA does NOT delay NodeB's tick count.
-If dispatch were single-threaded, NodeB.count would be 0 (all time consumed
-by NodeA's sleep). With per-node dispatch threads, NodeB processes all
-messages independently.
+Verifies that a slow handler in one node does not delay message delivery
+to another node — each node processes its queue on an independent thread.
 """
 
 import queue
@@ -21,18 +19,18 @@ class FakeSlowNode:
     """Simulates a node whose handler blocks for 0.5 s per message."""
 
     def __init__(self):
-        self._queue: queue.Queue = queue.Queue(maxsize=64)
-        self._stop = threading.Event()
+        self._queue  = queue.Queue(maxsize=64)
+        self._stop   = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True)
 
-    def start(self):
+    def start(self) -> None:
         self._thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         self._stop.set()
         self._thread.join(timeout=2)
 
-    def _loop(self):
+    def _loop(self) -> None:
         while not self._stop.is_set():
             try:
                 mid, msg, handler = self._queue.get(timeout=0.05)
@@ -41,27 +39,27 @@ class FakeSlowNode:
             except queue.Empty:
                 continue
 
-    def _handle(self, msg: FSMessage):
-        time.sleep(0.5)   # simulates heavy work / blocking IO
+    def _handle(self, msg: FSMessage) -> None:
+        time.sleep(0.5)  # simulates heavy work or blocking I/O
 
 
 class FakeFastNode:
-    """Simulates a fast counter node."""
+    """Simulates a lightweight counter node."""
 
     def __init__(self):
-        self._queue: queue.Queue = queue.Queue(maxsize=64)
-        self._stop = threading.Event()
+        self._queue  = queue.Queue(maxsize=64)
+        self._stop   = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True)
-        self.count: int = 0
+        self.count:  int = 0
 
-    def start(self):
+    def start(self) -> None:
         self._thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         self._stop.set()
         self._thread.join(timeout=2)
 
-    def _loop(self):
+    def _loop(self) -> None:
         while not self._stop.is_set():
             try:
                 mid, msg, handler = self._queue.get(timeout=0.05)
@@ -70,16 +68,15 @@ class FakeFastNode:
             except queue.Empty:
                 continue
 
-    def _handle(self, msg: FSMessage):
+    def _handle(self, msg: FSMessage) -> None:
         self.count += 1
 
 
 def test_slow_node_does_not_block_fast_node():
-    """FastNode should count all 5 ticks in < 0.5 s even though SlowNode stalls."""
-    # Reset bus singleton for isolation
-    FSBus._instance = None
+    """FastNode must process all 5 ticks even though SlowNode stalls on each one."""
+    FSBus._instance = None  # reset singleton for test isolation
 
-    bus = FSBus()
+    bus  = FSBus()
     slow = FakeSlowNode()
     fast = FakeFastNode()
 
@@ -93,8 +90,7 @@ def test_slow_node_does_not_block_fast_node():
     for _ in range(5):
         bus.pub(Mid.SCH_WAKEUP_10HZ, msg)
 
-    # Allow fast node time to process (0.2 s >> 5 × near-zero handler cost)
-    time.sleep(0.2)
+    time.sleep(0.2)  # 0.2 s >> (5 × near-zero fast-handler cost)
 
     assert fast.count == 5, (
         f"FastNode only processed {fast.count}/5 messages — nodes are not isolated!"
@@ -103,5 +99,4 @@ def test_slow_node_does_not_block_fast_node():
     slow.stop()
     fast.stop()
 
-    # Reset bus singleton for downstream tests
-    FSBus._instance = None
+    FSBus._instance = None  # reset singleton for downstream tests

@@ -23,23 +23,7 @@ from pyfs.common.fs_mid import Mid
 _QUEUE_MAXSIZE: int = 64  # drop messages rather than let memory grow unbounded
 
 
-class FSNodeMeta(type):
-    """Metaclass that auto-appends every FSNode subclass to FSNode._registry."""
-
-    def __init__(
-        cls,
-        name: str,
-        bases: tuple[type, ...],
-        attrs: dict[str, object],
-    ) -> None:
-        super().__init__(name, bases, attrs)
-        if not bases:
-            cls._registry: list[type[FSNode]] = []
-        else:
-            FSNode._registry.append(cls)
-
-
-class FSNode(metaclass=FSNodeMeta):
+class FSNode:
     """Abstract base class for all PyFS nodes.
 
     Override on_init, on_start, and on_stop in subclasses.
@@ -52,9 +36,7 @@ class FSNode(metaclass=FSNodeMeta):
         name: Short identifier string, override in subclass.
     """
 
-    _registry: ClassVar[list[type["FSNode"]]]
-
-    #: Set to False on a subclass to exclude it from the executive entirely.
+    # Option to disable node
     enabled: ClassVar[bool] = True
 
     bus:  FSBus
@@ -79,13 +61,6 @@ class FSNode(metaclass=FSNodeMeta):
         """Subscribe *handler* to *mid* through this node's private queue."""
         self.bus.sub(mid, self._queue, handler)
         self._sub_count += 1
-
-    # ── Registry ──────────────────────────────────────────────────────────────
-
-    @classmethod
-    def get_registry(cls) -> list[type["FSNode"]]:
-        """Return the list of registered concrete node classes."""
-        return cls._registry
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 

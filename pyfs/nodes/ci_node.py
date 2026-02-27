@@ -1,7 +1,6 @@
-"""Command Ingest Node.
+"""Command Ingest node — receives UDP commands and publishes them on the bus.
 
-Listens for UDP commands on a dedicated recv thread.  Does NOT subscribe to
-the scheduler — blocking I/O is fully isolated to its own thread.
+Blocking I/O runs on a dedicated recv thread, never touching the scheduler.
 """
 
 import json
@@ -15,18 +14,20 @@ from pyfs.core.fs_node import FSNode
 
 
 class CommandIngestNode(FSNode):
+    """Listens for UDP command packets and publishes them as FSMessage objects."""
+
     name = "ci"
 
-    _sock: socket.socket
-    _recv_stop: threading.Event
+    _sock:        socket.socket
+    _recv_stop:   threading.Event
     _recv_thread: threading.Thread
 
     def on_init(self) -> None:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sock.settimeout(1.0)   # timeout lets recv_loop check stop event
+        self._sock.settimeout(1.0)  # allows the recv loop to check the stop event
         self._sock.bind((FSCfg.CMD_IN_HOST, FSCfg.CMD_IN_PORT))
-        self._recv_stop = threading.Event()
+        self._recv_stop   = threading.Event()
         self._recv_thread = threading.Thread(
             target=self._recv_loop,
             name="fs.ci.recv",
@@ -44,20 +45,20 @@ class CommandIngestNode(FSNode):
         self._sock.close()
 
     def _recv_loop(self) -> None:
-        """Block on recvfrom in own thread — never touches the SCH thread."""
+        """Block on recvfrom; parse each packet and publish it on the bus."""
         while not self._recv_stop.is_set():
             try:
                 data, _addr = self._sock.recvfrom(4096)
             except socket.timeout:
-                continue   # check stop event and loop
+                continue  # check stop event and loop
             except OSError:
-                break      # socket was closed during shutdown
+                break     # socket was closed during shutdown
 
             try:
-                cmd = json.loads(data.decode())
+                cmd     = json.loads(data.decode())
                 mid_val = cmd.get("mid", "")
                 payload = cmd.get("payload", {})
-                mid = Mid(mid_val)
+                mid     = Mid(mid_val)
                 self.bus.pub(mid, FSMessage(mid, payload=payload))
             except Exception as exc:
                 self.log.error("recv parse error: %s", exc)
