@@ -1,37 +1,32 @@
-import sys
-import time
-import logging
+"""PyFS entry point — configure logging, register nodes, and launch."""
 
-from pyfs.common.mid import Mid
-from pyfs.core.bus import Bus
-from pyfs.nodes.scheduler import ScheduleNode
-from user_nodes.test_node import TestNode, TestNode2
+from __future__ import annotations
+
+import logging
+import sys
+
+from pyfs.common.config import SYSTEM_CONFIG
+from pyfs.core.executive import FSExecutive
+from user_nodes.test_node import TelemetryNode, GNCNode
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s.%(msecs)03d | %(levelname)-8s | %(name)-20s | %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%S",
     stream=sys.stdout,
-    force=True,   # ensures config is applied even if handlers exist
+    force=True,
 )
 
-def main():
-    bus = Bus()
 
-    node_1 = TestNode(bus)
-    node_2 = TestNode2(bus)
-    node_3 = ScheduleNode(bus)
+def main() -> None:
+    """Create the executive, register demo nodes, and start the system."""
+    exe: FSExecutive = FSExecutive(SYSTEM_CONFIG)
 
-    node_3.register_task(Mid.SCHEDULE_NODE_1HZ, 1)
-    node_3.register_task(Mid.SCHEDULE_NODE_10HZ, 10)
+    exe.register_node(TelemetryNode(exe.bus))
+    exe.register_node(GNCNode(exe.bus))
 
-    node_1.start()
-    node_2.start()
-    node_3.start()
-
-    while True:
-        time.sleep(2)
+    exe.start()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
