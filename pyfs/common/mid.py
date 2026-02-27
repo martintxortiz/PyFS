@@ -1,0 +1,9 @@
+from enum import Enum, IntEnum
+
+
+class Mid(IntEnum):
+    TELEMETRY_MSG_ID = 0x1001
+    SCHEDULE_NODE_1HZ = 0x1003
+    SCHEDULE_NODE_10HZ = 0x1004
+    SCHEDULE_NODE_50HZ = 0x1005
+    SCHEDULE_NODE_100HZ = 0x1006

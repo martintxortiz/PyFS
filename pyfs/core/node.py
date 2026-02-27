@@ -17,10 +17,10 @@ class FSNode:
         self.name = name
         self._log = logging.getLogger(f"fs.{self.name}")
 
-        self._log.info(f"Node ({self.name}) initialized")
+        self._log.info(f"({self.name}) initialized")
 
     def start(self):
-        self._log.info(f"Node ({self.name}) started")
+        self._log.info(f"({self.name}) started")
 
     def stop(self):
-        self._log.info(f"Node ({self.name}) stopped")
+        self._log.info(f"({self.name}) stopped")
